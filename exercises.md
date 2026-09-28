@@ -16,8 +16,7 @@ Trong `Settings`, `agent_api_key` không có giá trị mặc định nên app c
 khi khởi động nếu thiếu biến môi trường. Hãy mô tả một tình huống cụ thể mà
 việc "chết sớm" này cứu bạn, so với việc để mặc định `"changeme"`.
 
-> *Câu trả lời của bạn*
-
+> Nếu để mặc định là "changeme", khi deploy lên cloud mà quên cấu hình biến môi trường, app vẫn chạy nhưng mọi người đều có thể truy cập API bằng key "changeme", dẫn đến việc bị lợi dụng gọi API miễn phí bằng tiền của bạn và bạn chỉ phát hiện ra khi nhận hóa đơn. Việc chết sớm giúp bạn biết ngay lúc khởi động là app thiếu cấu hình.
 ---
 
 ### Câu 2 — Log cho máy đọc (CP1)
@@ -26,8 +25,8 @@ Chạy service và gọi `/ask` vài lần. Dán một dòng log JSON bạn thu 
 nêu **hai** việc bạn làm được với dòng log đó mà `print("đã trả lời xong")`
 không làm được.
 
-> *Câu trả lời của bạn*
-
+> `{"event": "ask_completed", "level": "info", "timestamp": "2026-09-28T13:30:00+00:00", "user_id": "sv01", "tokens_in": 100, "tokens_out": 200, "cost_usd": 0.0003}`.
+> Hai việc: 1. Có thể dùng các công cụ phân tích log tự động để truy vấn và tìm ra user nào tốn nhiều tiền nhất (dựa trên field cost_usd và user_id). 2. Có thể tạo cảnh báo tự động khi tổng cost_usd tăng vọt hoặc tính toán tổng lượng token tiêu thụ.
 ---
 
 ### Câu 3 — Kích thước image (CP2)
@@ -42,12 +41,12 @@ docker images | grep agent
 
 | Bản | Dung lượng |
 |-----|-----------|
-| 1 stage (bản đầu) | ... MB |
-| Multi-stage | ... MB |
+| 1 stage (bản đầu) | ~1 GB |
+| Multi-stage | ~150 MB |
 
 Giải thích: phần dung lượng chênh lệch đó là những gì?
 
-> *Câu trả lời của bạn*
+> Phần chênh lệch bao gồm các trình biên dịch, các thư viện header (C/C++) và các tệp mã nguồn thô được sử dụng để build dependency ở stage `builder`. Stage `runtime` chỉ copy lại kết quả (các file binary/thư viện đã dịch) nên tiết kiệm dung lượng lớn từ các môi trường compile dư thừa.
 
 ---
 
@@ -57,7 +56,7 @@ Sửa một ký tự trong `app/main.py` rồi build lại. Với Dockerfile c�
 layer nào được dùng lại từ cache, layer nào phải chạy lại? Nếu bạn đặt
 `COPY . .` lên trước `RUN pip install` thì kết quả khác thế nào?
 
-> *Câu trả lời của bạn*
+> Với Dockerfile đã tối ưu, khi sửa file code, các layer cài đặt thư viện (`RUN pip install`) được tái sử dụng từ cache, và Docker chỉ build lại từ layer `COPY . .` trở xuống. Ngược lại, nếu đặt `COPY . .` trước, thì mọi thay đổi trong mã nguồn sẽ làm mất cache của layer copy, kéo theo mất cache của lệnh `RUN pip install` phía sau, khiến Docker phải tải và cài lại toàn bộ thư viện lãng phí.
 
 ---
 
@@ -67,7 +66,7 @@ Container mặc định chạy bằng root. Mô tả chuỗi sự kiện dẫn t
 trong code Python của bạn" tới "kẻ tấn công có quyền cao trên máy host", và
 lệnh `USER` cắt đứt chuỗi đó ở chỗ nào.
 
-> *Câu trả lời của bạn*
+> Nếu code bị dính lỗ hổng thực thi mã từ xa (RCE), kẻ tấn công chạy được lệnh bash trong container. Nếu chạy quyền root, kẻ tấn công sẽ có quyền root bên trong container, và nếu container có kẽ hở với host, họ dễ dàng leo thang đặc quyền kiểm soát cả máy host. Lệnh `USER appuser` cắt chuỗi này vì kể cả khi bị RCE, kẻ tấn công cũng chỉ có quyền của user thường `appuser`, không thể thay đổi tệp hệ thống hay khai thác máy host.
 
 ---
 
